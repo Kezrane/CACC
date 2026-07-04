@@ -1,0 +1,80 @@
+# Constrained High-Density 6x6 IoT Mesh Grid Topology Matrix
+# Format: Link Source Destination Bandwidth Delay
+
+# Row 0 Cross-Connects
+link N0  N1  10Mbps 20ms
+link N1  N2  10Mbps 20ms
+link N2  N3  10Mbps 20ms
+link N3  N4  10Mbps 20ms
+link N4  N5  10Mbps 20ms
+
+# Row 1 Cross-Connects
+link N6  N7  10Mbps 20ms
+link N7  N8  10Mbps 20ms
+link N8  N9  10Mbps 20ms
+link N9  N10 10Mbps 20ms
+link N10 N11 10Mbps 20ms
+
+# Row 2 Cross-Connects
+link N12 N13 10Mbps 20ms
+link N13 N14 10Mbps 20ms
+link N14 N15 10Mbps 20ms
+link N15 N16 10Mbps 20ms
+link N16 N17 10Mbps 20ms # N17 sits as the Central Gateway Producer node
+
+# Row 3 Cross-Connects
+link N18 N19 10Mbps 20ms
+link N19 N20 10Mbps 20ms
+link N20 N21 10Mbps 20ms
+link N21 N22 10Mbps 20ms
+link N22 N23 10Mbps 20ms
+
+# Row 4 Cross-Connects
+link N24 N25 10Mbps 20ms
+link N25 N26 10Mbps 20ms
+link N26 N27 10Mbps 20ms
+link N27 N28 10Mbps 20ms
+link N28 N29 10Mbps 20ms
+
+# Row 5 Cross-Connects
+link N30 N31 10Mbps 20ms
+link N31 N32 10Mbps 20ms
+link N32 N33 10Mbps 20ms
+link N33 N34 10Mbps 20ms
+link N34 N35 10Mbps 20ms
+
+# Column Vertical Interconnect Arrays (Binding Rows into the Mesh Grid)
+link N0  N6  10Mbps 20ms
+link N1  N7  10Mbps 20ms
+link N2  N8  10Mbps 20ms
+link N3  N9  10Mbps 20ms
+link N4  N10 10Mbps 20ms
+link N5  N11 10Mbps 20ms
+
+link N6  N12 10Mbps 20ms
+link N7  N13 10Mbps 20ms
+link N8  N14 10Mbps 20ms
+link N9  N15 10Mbps 20ms
+link N10 N16 10Mbps 20ms
+link N11 N17 10Mbps 20ms
+
+link N12 N18 10Mbps 20ms
+link N13 N19 10Mbps 20ms
+link N14 N20 10Mbps 20ms
+link N15 N21 10Mbps 20ms
+link N16 N22 10Mbps 20ms
+link N17 N23 10Mbps 20ms
+
+link N18 N24 10Mbps 20ms
+link N19 N25 10Mbps 20ms
+link N20 N26 10Mbps 20ms
+link N21 N27 10Mbps 20ms
+link N22 N28 10Mbps 20ms
+link N23 N29 10Mbps 20ms
+
+link N24 N30 10Mbps 20ms
+link N25 N31 10Mbps 20ms
+link N26 N32 10Mbps 20ms
+link N27 N33 10Mbps 20ms
+link N28 N34 10Mbps 20ms
+link N29 N35 10Mbps 20ms
