@@ -94,7 +94,7 @@ bool CaccCore::shouldCache(uint8_t ph, uint8_t ohc, uint64_t faceId) {
     // Mathematical formulation mapping:
     // P = alpha * (1 - 1/(PH + 2)) + (1 - alpha) * (1 - OHC/(H_max + 1))
     double popularityComponent = 1.0 - (1.0 / (adjustedPh + 2.0));
-    double localityComponent = 1.0 - (static_cast<double>(ohc) / (static_cast<double>(m_maxHops) + 1.0));
+    double localityComponent = static_cast<double>(ohc) / (static_cast<double>(m_maxHops) + 1.0);
 
     double cachingProbability = (m_alpha * popularityComponent) + ((1.0 - m_alpha) * localityComponent);
 

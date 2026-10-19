@@ -1,4 +1,4 @@
-# CACC-Secure: A Lightweight, Secure Context-Aware Collaborative Caching Protocol for Named Data Networking
+# A Lightweight Secure Context-Aware Collaborative Caching Protocol for Named Data Networking
 
 This repository contains the official `ndnSIM` implementation of **CACC-Secure**, a lightweight, secure, non-AI caching protocol designed for Named Data Networking (NDN). The architecture embeds a 6-byte data-plane header containing a Popularity Hint (PH), Origin Hop-Count (OHC), Sequence Number (SEQ), and a truncated HMAC to deliver defense-in-depth against metadata manipulation and cache pollution attacks without incurring control-plane signaling overhead.
 
