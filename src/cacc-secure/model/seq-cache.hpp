@@ -10,21 +10,30 @@ namespace ns3 {
 namespace ndn {
 
 /**
- * @brief State tracking container to defend against metadata replay attacks.
- * Uses a size-bounded structure to manage active sequence tracks.
+ * @brief Anti-Replay Verification (SEQN Cache) as specified in
+ *        Algorithm 2 of the CACC-Secure paper.
+ *
+ * Handles 8-bit circular sequence numbers (0..255) with a midpoint at 128:
+ *   diff = (incomingSEQN - lastSEQN + 256) mod 256
+ *   - diff == 0        -> duplicate, DROP
+ *   - diff >  128      -> suspicious backward jump, DROP
+ *   - 1 <= diff <= 128 -> fresh, ACCEPT and update
+ *
+ * A size-bounded LRU structure limits memory usage (default 1000 entries,
+ * matching the paper's implementation section 4.2.2).
  */
 class SeqCache {
 public:
     /**
-     * @param maxTrackedEntries Maximum number of unique names to retain in memory.
+     * @param maxTrackedEntries Maximum number of unique content names kept.
      */
-    SeqCache(size_t maxTrackedEntries = 5000);
+    explicit SeqCache(size_t maxTrackedEntries = 1000);
 
     /**
-     * @brief Validates incoming sequence sequence freshness.
+     * @brief Algorithm 2: Anti-Replay Verification with circular SEQN handling.
      * @param contentName The structural name identifier of the data chunk.
-     * @param incomingSeq The sequence number extracted from the 6-byte header.
-     * @return true if sequence is strictly monotonically increasing (fresh), false if replayed.
+     * @param incomingSeq The 1-byte sequence number extracted from the header.
+     * @return true if the SEQN is fresh (accepted), false if it must be dropped.
      */
     bool validateSequence(const ::ndn::Name& contentName, uint8_t incomingSeq);
 
@@ -33,22 +42,30 @@ public:
      */
     void clear();
 
+    /**
+     * @brief Returns the currently tracked number of entries (for debugging).
+     */
+    size_t size() const { return m_seqTable.size(); }
+
 private:
     /**
-     * @brief Evicts the oldest element using an LRU policy to stay within limits.
+     * @brief Evicts the oldest element using an LRU policy.
      */
     void evictOldest();
 
 private:
+    static constexpr uint16_t SEQN_MODULUS   = 256;  // 2^8
+    static constexpr uint16_t SEQN_HALF_WIN  = 128;  // midpoint
+
     size_t m_maxTrackedEntries;
 
-    // Fast loop lookup structure for tracking current sequences
+    // last observed SEQN per content name
     std::map<::ndn::Name, uint8_t> m_seqTable;
 
-    // Tracking list for managing cache eviction
+    // LRU tracking list
     std::list<::ndn::Name> m_lruTracker;
-    
-    // Cross-referencing pointers to maintain O(1) removals during cache hits
+
+    // O(1) handle into the LRU list for each name
     std::map<::ndn::Name, std::list<::ndn::Name>::iterator> m_lruMap;
 };
 
