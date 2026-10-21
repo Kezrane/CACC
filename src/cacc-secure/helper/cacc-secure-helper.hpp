@@ -1,55 +1,62 @@
-#ifndef NDN_SIM_CACC_SECURE_HELPER_HPP
-#define NDN_SIM_CACC_SECURE_HELPER_HPP
+// cacc-secure-helper.hpp
+//
+// Helper to install CaccSecure RouterPipeline on a set of ns-3 nodes.
+// Mirrors the usage pattern of ndnSIM's StackHelper/AppHelper:
+//   CaccSecureHelper helper("key");
+//   helper.InstallAll(nodes);
+//   Ptr<RouterPipeline> p = helper.GetPipeline(nodeId);
 
-#include "cacc-core.hpp"
-#include <ns3/node-container.h>
-#include <ns3/object-factory.h>
-#include <memory>
+#ifndef CACC_SECURE_HELPER_HPP
+#define CACC_SECURE_HELPER_HPP
+
+#include "ns3/node-container.h"
+#include "ns3/ptr.h"
+#include "ns3/object-factory.h"
+
+#include "cacc-secure/model/router-pipeline.hpp"
+
 #include <map>
+#include <string>
 
 namespace ns3 {
 namespace ndn {
 
-/**
- * @brief Helper class to instantiate, configure, and install CACC-Secure architectures across topologies.
- */
 class CaccSecureHelper {
 public:
-    CaccSecureHelper();
-
     /**
-     * @brief Parameters configuration adjustment interface.
+     * @param hmacKey Pre-shared symmetric key (16 or 32 bytes).
      */
-    void setParameter(const std::string& name, const std::string& value);
+    explicit CaccSecureHelper(const std::string& hmacKey);
 
-    /**
-     * @brief Installs the CACC core tracking context onto a container pool of nodes.
-     * @param c Nodes container mapping target system targets.
-     */
-    void install(const NodeContainer& c);
+    // -----------------------------------------------------------------------
+    // Attribute configuration (mirrors ns3::ObjectFactory)
+    // -----------------------------------------------------------------------
+    void SetAttribute(const std::string& name, const AttributeValue& value);
 
-    /**
-     * @brief Installs the CACC core tracking context onto a targeted specific node.
-     * @param node Selected isolated pointer destination.
-     */
-    void install(Ptr<Node> node);
+    // -----------------------------------------------------------------------
+    // Installation
+    // -----------------------------------------------------------------------
+    void InstallAll(const NodeContainer& nodes);
+    void Install(Ptr<Node> node);
 
-    /**
-     * @brief Fetches the underlying tracking instance runtime for analytical probing.
-     * @param node Targeted infrastructure pointer.
-     */
-    std::shared_ptr<CaccCore> getCoreInstance(Ptr<Node> node);
+    // -----------------------------------------------------------------------
+    // Accessors
+    // -----------------------------------------------------------------------
+    Ptr<RouterPipeline> GetPipeline(uint32_t nodeId) const;
+    bool HasPipeline(uint32_t nodeId) const;
+
+    const std::string& hmacKey() const { return m_hmacKey; }
 
 private:
-    double m_alpha;
-    uint8_t m_maxHops;
-    std::string m_secretKey;
+    Ptr<RouterPipeline> CreatePipeline(Ptr<Node> node);
 
-    // Local system instance management map
-    std::map<Ptr<Node>, std::shared_ptr<CaccCore>> m_nodeRegistry;
+private:
+    std::string m_hmacKey;
+    std::map<std::string, Ptr<AttributeValue>> m_attributes;
+    std::map<uint32_t, Ptr<RouterPipeline>> m_pipelines;
 };
 
 } // namespace ndn
 } // namespace ns3
 
-#endif // NDN_SIM_CACC_SECURE_HELPER_HPP
+#endif // CACC_SECURE_HELPER_HPP
