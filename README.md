@@ -18,14 +18,7 @@ This repository is synchronised with the revisions of the manuscript. Each tag c
 
 | Tag / Version | Commit hash | Manuscript revision | Key changes |
 |---|---|---|---|
-| `v2.0-revised` | [`a1b2c3d`](https://github.com/Kezrane/CACC/commit/a1b2c3d) | Revision 2 (response to reviewers) | Equation (1) corrected (`+RHC/(H_max+1)`); Algorithm 2 circular SEQN; `seq-cache-test.cpp` added; CHR 80.3 % → 81.0 %; S3 precision 97.8 % → 99.7 % |
-| `v1.0-submitted` | [`f9e8d7c`](https://github.com/Kezrane/CACC/commit/f9e8d7c) | Initial submission | Original Algorithm 5 (`1 − RHC/(H_max+1)`); linear SEQN check |
-
-> ⚠️ **Note for reviewers.** The `v2.0-revised` tag contains the code that produced **all results reported in the revised manuscript** (Figures 4–7, Tables 6–7). If you are reproducing the paper, please check out this tag:
-> ```bash
-> git checkout v2.0-revised
-> ```
-
+| `v2.0-revised` | [`0a19d53`](https://github.com/Kezrane/CACC/commit/a1b2c3d) | Revision 2 | Equation (1) corrected (`+RHC/(H_max+1)`); Algorithm 2 circular SEQN; `seq-cache-test.cpp` added; CHR 80.3 % → 81.0 %; S3 precision 97.8 % → 99.7 % |
 ---
 
 ## Mapping: Manuscript Algorithms → Source Files
