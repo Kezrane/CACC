@@ -1,56 +1,46 @@
-#ifndef NDN_SIM_REPUTATION_HPP
-#define NDN_SIM_REPUTATION_HPP
+// reputation.hpp
+//
+// Algorithm 4: Reputation-Based Trust Weighting.
+//
+// Maintains a local trust score per neighbor. PH and RHC are weighted
+// by the reputation of the previous hop before the caching decision.
 
-#include <ndn-cxx/face.hpp>
-#include <map>
+#ifndef CACC_SECURE_REPUTATION_HPP
+#define CACC_SECURE_REPUTATION_HPP
+
 #include <cstdint>
+#include <map>
 
 namespace ns3 {
 namespace ndn {
 
-/**
- * @brief Dynamic reputation trust tracking system to isolate compromised neighborhood nodes.
- */
-class Reputation {
+class ReputationTable {
 public:
-    /**
-     * @param defaultTrust Baseline trust assigned to newly seen network interfaces.
-     * @param penaltyStep Point deduction value applied when an anomaly is triggered.
-     */
-    Reputation(double defaultTrust = 1.0, double penaltyStep = 0.15);
+    explicit ReputationTable(double initialTrust = 0.5,
+                             double decayFactor  = 0.9);
 
     /**
-     * @brief Fetches current normalized reputation score for a targeted node link.
-     * @param faceId Unique systemic ID of the incoming router interface.
-     * @return Trust score mapped within standard bounds [0.0, 1.0].
+     * @brief Get the trust score of a neighbor (defaults to initialTrust).
      */
-    double getTrustScore(uint64_t faceId);
+    double getTrustScore(uint32_t neighborId) const;
 
     /**
-     * @brief Applies an explicit penalty deduction upon security breach detection.
-     * @param faceId Unique systemic ID of the offending interface.
+     * @brief Update the trust score of a neighbor.
+     * @param neighborId  Neighbor identifier.
+     * @param consistent  true if the neighbor behaved consistently,
+     *                    false if it was flagged (HMAC failure, replay, ...).
      */
-    void registerAnomaly(uint64_t faceId);
+    void update(uint32_t neighborId, bool consistent);
 
-    /**
-     * @brief Gradually restores reputation scores over time to prevent permanent lockouts.
-     */
-    void applyTimeDecayRecovery();
-
-    /**
-     * @brief Completely resets the reputation state tables.
-     */
-    void reset();
+    double initialTrust() const { return m_initialTrust; }
 
 private:
-    double m_defaultTrust;
-    double m_penaltyStep;
-
-    // Table mapping Interface/Face IDs to absolute floating point trust values
-    std::map<uint64_t, double> m_reputationTable;
+    double m_initialTrust;
+    double m_decayFactor;
+    std::map<uint32_t, double> m_scores;
 };
 
 } // namespace ndn
 } // namespace ns3
 
-#endif // NDN_SIM_REPUTATION_HPP
+#endif // CACC_SECURE_REPUTATION_HPP

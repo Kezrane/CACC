@@ -1,42 +1,68 @@
+// reputation.cpp
+//
+// Implementation of Algorithm 4 (Reputation-Based Trust Weighting).
+
 #include "reputation.hpp"
+
+#include <ns3/log.h>
+
 #include <algorithm>
 
 namespace ns3 {
 namespace ndn {
 
-Reputation::Reputation(double defaultTrust, double penaltyStep)
-    : m_defaultTrust(defaultTrust), m_penaltyStep(penaltyStep) {}
+NS_LOG_COMPONENT_DEFINE("CaccSecureReputation");
 
-double Reputation::getTrustScore(uint64_t faceId) {
-    auto it = m_reputationTable.find(faceId);
-    if (it == m_reputationTable.end()) {
-        // First occurrence: initialize interface with baseline parameters
-        m_reputationTable[faceId] = m_defaultTrust;
-        return m_defaultTrust;
+// ===========================================================================
+// Construction
+// ===========================================================================
+ReputationTable::ReputationTable(double initialTrust, double decayFactor)
+    : m_initialTrust(initialTrust),
+      m_decayFactor(decayFactor)
+{
+    NS_LOG_FUNCTION(this << initialTrust << decayFactor);
+}
+
+// ===========================================================================
+// Algorithm 4, line 1: trust <- reputation_table[previous_hop]
+// ===========================================================================
+double
+ReputationTable::getTrustScore(uint32_t neighborId) const
+{
+    auto it = m_scores.find(neighborId);
+    if (it == m_scores.end()) {
+        // Cold start: neutral trust
+        return m_initialTrust;
     }
     return it->second;
 }
 
-void Reputation::registerAnomaly(uint64_t faceId) {
-    double currentScore = getTrustScore(faceId);
-    
-    // Deduct trust score while maintaining absolute floor boundary bounds
-    m_reputationTable[faceId] = std::max(0.0, currentScore - m_penaltyStep);
-}
-
-void Reputation::applyTimeDecayRecovery() {
-    // Standard gradual step-up recovery constant per evaluation era
-    const double recoveryFactor = 0.02;
-
-    for (auto& pair : m_reputationTable) {
-        if (pair.second < m_defaultTrust) {
-            pair.second = std::min(m_defaultTrust, pair.second + recoveryFactor);
-        }
+// ===========================================================================
+// Algorithm 4, lines 2-3 (implicit): update the trust score
+// ===========================================================================
+// Consistent behaviour  : score <- score * decay + (1 - decay) * 1
+// Inconsistent behaviour: score <- score * decay
+// The score is clamped to [0, 1].
+// ===========================================================================
+void
+ReputationTable::update(uint32_t neighborId, bool consistent)
+{
+    double& score = m_scores[neighborId];
+    if (score == 0.0 && m_scores.find(neighborId) == m_scores.end()) {
+        score = m_initialTrust;
     }
-}
 
-void Reputation::reset() {
-    m_reputationTable.clear();
+    if (consistent) {
+        score = score * m_decayFactor + (1.0 - m_decayFactor) * 1.0;
+    } else {
+        score = score * m_decayFactor;
+    }
+
+    score = std::max(0.0, std::min(1.0, score));
+
+    NS_LOG_DEBUG("Reputation update: neighbor=" << neighborId
+                 << " consistent=" << consistent
+                 << " -> score=" << score);
 }
 
 } // namespace ndn

@@ -1,50 +1,60 @@
-#ifndef NDN_SIM_RATE_LIMITER_HPP
-#define NDN_SIM_RATE_LIMITER_HPP
+// rate-limiter.hpp
+//
+// Algorithm 3: Rate Limiting for PH Inflation Prevention.
+//
+// Maintains a sliding-window counter per content name. If the number
+// of PH increments observed in the last 60 seconds exceeds the
+// threshold (10), the PH is clamped to its previous value.
 
-#include <ns3/core-module.h>
+#ifndef CACC_SECURE_RATE_LIMITER_HPP
+#define CACC_SECURE_RATE_LIMITER_HPP
+
 #include <ndn-cxx/name.hpp>
+#include <cstdint>
+#include <deque>
 #include <map>
-#include <queue>
+#include <utility>
 
 namespace ns3 {
 namespace ndn {
 
-/**
- * @brief Sliding-window frequency tracking system to clamp malicious PH inflation.
- */
 class RateLimiter {
 public:
     /**
-     * @param windowSize The history timeframe to evaluate arrival velocity (e.g., 1.0 second).
-     * @param maxRequests Allowed threshold bounds before triggering mitigation logic.
+     * @param maxIncrPerWindow  Threshold (default 10 increments).
+     * @param windowSeconds     Sliding window duration (default 60 s).
      */
-    RateLimiter(Time windowSize = Seconds(1.0), uint32_t maxRequests = 50);
+    explicit RateLimiter(uint32_t maxIncrPerWindow = 10,
+                         uint32_t windowSeconds    = 60);
 
     /**
-     * @brief Evaluates arriving instances of a specific data prefix.
-     * @param interestName The structural NDN name of the incoming content request.
-     * @return true if frequency thresholds are respected, false if an inflation spike is caught.
+     * @brief Algorithm 3: check and update the sliding-window counter.
+     *
+     * @param contentName  Content name.
+     * @param ph           In/out: if the threshold is exceeded, PH is
+     *                     reset to its previous value (clamped).
+     * @return             true if the PH was clamped (threshold exceeded).
      */
-    bool validateFrequency(const ::ndn::Name& interestName);
+    bool checkAndUpdate(const ::ndn::Name& contentName, uint8_t& ph);
 
-    // Dynamic configuration adjustments
-    void setWindowSize(Time windowSize) { m_windowSize = windowSize; }
-    void setMaxRequests(uint32_t maxRequests) { m_maxRequests = maxRequests; }
-
-    /**
-     * @brief Purges expired history records to prevent state-table leakage.
-     */
-    void purgeExpiredRecords();
+    void   clear();
+    size_t size() const { return m_windows.size(); }
 
 private:
-    Time m_windowSize;
-    uint32_t m_maxRequests;
+    struct Window {
+        std::deque<uint64_t> timestamps;  // ms since epoch
+        uint8_t lastPh = 0;
+    };
 
-    // Track timestamps for arrivals mapped per data prefix
-    std::map<::ndn::Name, std::queue<Time>> m_prefixHistoryTable;
+    uint64_t nowMs() const;
+
+private:
+    uint32_t m_maxIncrPerWindow;
+    uint64_t m_windowMs;   // window in milliseconds
+    std::map<::ndn::Name, Window> m_windows;
 };
 
 } // namespace ndn
 } // namespace ns3
 
-#endif // NDN_SIM_RATE_LIMITER_HPP
+#endif // CACC_SECURE_RATE_LIMITER_HPP
