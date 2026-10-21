@@ -1,107 +1,92 @@
-#include "cacc-core.cpp"
-#include <ns3/log.h>
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
-#include <cstdlib>
-#include <cmath>
+// cacc-core.cpp
+//
+// Implementation of Equation (1) and Algorithm 5 (CACC Core Caching).
 
-NS_LOG_COMPONENT_DEFINE("ndn.CaccCore");
+#include "cacc-core.hpp"
+
+#include <ns3/log.h>
+
+#include <random>
 
 namespace ns3 {
 namespace ndn {
 
-CaccCore::CaccCore(double alpha, uint8_t maxHops, const std::string& secretKey)
-    : m_alpha(alpha), m_maxHops(maxHops), m_secretKey(secretKey),
-      m_rateLimiter(Seconds(1.0), 50), m_seqCache(5000), m_reputation(1.0, 0.15) {}
+NS_LOG_COMPONENT_DEFINE("CaccSecureCaccCore");
 
-uint32_t CaccCore::calculateHmac(const ::ndn::Name& name, uint8_t ph, uint8_t ohc, uint8_t seq) {
-    std::string nameStr = name.toUri();
-    
-    // Assemble the contiguous byte stream for validation
-    std::vector<uint8_t> buffer(nameStr.begin(), nameStr.end());
-    buffer.push_back(ph);
-    buffer.push_back(ohc);
-    buffer.push_back(seq);
-
-    unsigned int mdLen = 0;
-    uint8_t md[EVP_MAX_MD_SIZE];
-
-    // Compute HMAC-SHA256 signature using OpenSSL functions
-    HMAC(EVP_sha256(), 
-         m_secretKey.c_str(), m_secretKey.length(), 
-         buffer.data(), buffer.size(), 
-         md, &mdLen);
-
-    if (mdLen < 4) return 0;
-
-    // Truncate signature to a 4-byte big-endian unsigned integer boundary
-    uint32_t truncatedHmac = (static_cast<uint32_t>(md[0]) << 24) |
-                             (static_cast<uint32_t>(md[1]) << 16) |
-                             (static_cast<uint32_t>(md[2]) << 8)  |
-                             (static_cast<uint32_t>(md[3]));
-
-    return truncatedHmac;
-}
-
-bool CaccCore::verifyAndProcessIncomingData(const ::ndn::Data& data, uint64_t faceId) {
-    try {
-        // Find and extract the embedded CaccHeader block within the Data packet
-        auto caccBlock = data.getContext<CaccHeader>();
-        if (!caccBlock) {
-            NS_LOG_WARN("Packet missing necessary CaccHeader structural block. Rejecting.");
-            return false;
-        }
-
-        const ::ndn::Name& contentName = data.getName();
-
-        // Layer 1: HMAC-Based Metadata Integrity Validation
-        uint32_t calculatedSign = calculateHmac(contentName, caccBlock->getPh(), caccBlock->getOhc(), caccBlock->getSeq());
-        if ((calculatedSign & 0xFFFFFF) != caccBlock->getHmac()) {
-            NS_LOG_WARN("HMAC validation integrity fault discovered from Face ID: " << faceId);
-            m_reputation.registerAnomaly(faceId);
-            return false;
-        }
-
-        // Layer 2: Sequence Number Anti-Replay Validation
-        if (!m_seqCache.validateSequence(contentName, caccBlock->getSeq())) {
-            NS_LOG_WARN("Sequence anti-replay mechanism caught stale tracking update from Face ID: " << faceId);
-            m_reputation.registerAnomaly(faceId);
-            return false;
-        }
-
-        // Layer 3: Sliding-Window Counter Rate Limiting
-        if (!m_rateLimiter.validateFrequency(contentName)) {
-            NS_LOG_WARN("Rate limiting capacity ceiling triggered for prefix pattern from Face ID: " << faceId);
-            // Rate limiters handle load; do not apply hard trust penalties immediately
-            return false;
-        }
-
-        return true;
-    } 
-    catch (const std::exception& e) {
-        NS_LOG_ERROR("Exception occurred during CaccCore metadata parsing logic: " << e.what());
-        return false;
+// ===========================================================================
+// Construction
+// ===========================================================================
+CaccCore::CaccCore(double alpha, uint8_t maxHops)
+    : m_alpha(alpha),
+      m_maxHops(maxHops)
+{
+    NS_LOG_FUNCTION(this << alpha << static_cast<int>(maxHops));
+    if (alpha < 0.0 || alpha > 1.0) {
+        NS_LOG_WARN("CaccCore: alpha outside [0,1], clamping");
+        m_alpha = std::max(0.0, std::min(1.0, alpha));
     }
 }
 
-bool CaccCore::shouldCache(uint8_t ph, uint8_t ohc, uint64_t faceId) {
-    // Layer 4: Extract current reputation weight modifier
-    double trustScale = m_reputation.getTrustScore(faceId);
+// ===========================================================================
+// Equation (1): P(PH, RHC)
+// ===========================================================================
+double
+CaccCore::probability(double phEff, double rhcEff) const
+{
+    // 1. Popularity term: 1 - 1/(PH_eff + 2)
+    const double popularityComponent = 1.0 - (1.0 / (phEff + 2.0));
 
-    // Apply trust adjustment to the raw Popularity Hint metric
-    double adjustedPh = static_cast<double>(ph) * trustScale;
+    // 2. Locality term: RHC_eff / (H_max + 1)
+    const double localityComponent =
+        rhcEff / (static_cast<double>(m_maxHops) + 1.0);
 
-    // Mathematical formulation mapping:
-    // P = alpha * (1 - 1/(PH + 2)) + (1 - alpha) * (1 - OHC/(H_max + 1))
-    double popularityComponent = 1.0 - (1.0 / (adjustedPh + 2.0));
-    double localityComponent = static_cast<double>(ohc) / (static_cast<double>(m_maxHops) + 1.0);
+    // 3. Weighted sum
+    const double p = m_alpha * popularityComponent
+                   + (1.0 - m_alpha) * localityComponent;
 
-    double cachingProbability = (m_alpha * popularityComponent) + ((1.0 - m_alpha) * localityComponent);
+    // Clamp to [0, 1] for numerical safety
+    return std::max(0.0, std::min(1.0, p));
+}
 
-    // Generate a uniform random evaluation boundary between [0.0, 1.0]
-    double randomSample = static_cast<double>(std::rand()) / static_cast<double>(RAND_MAX);
+// ===========================================================================
+// Algorithm 5: CACC Core Caching Decision
+// ===========================================================================
+// Require: Effective PH, Effective RHC
+// Ensure: Cache or Forward decision
+// 1: RHC_effective <- RHC_effective + 1 (increment for this hop)
+// 2: P <- alpha * (1 - 1/(PH_effective + 2))
+//           + (1 - alpha) * (RHC_effective / (H_max + 1))
+// 3: r <- random(0, 1)
+// 4: if r <= P then
+// 5:    cache(DataPacket)
+// 6: end if
+// 7: forward(DataPacket)
+// ===========================================================================
+bool
+CaccCore::decide(double phEff, double rhcEff)
+{
+    // 1. Increment RHC for the current hop
+    const double rhcIncremented = rhcEff + 1.0;
 
-    return randomSample <= cachingProbability;
+    // 2. Compute P
+    m_lastP = probability(phEff, rhcIncremented);
+
+    // 3. Sample r ~ U(0, 1)
+    static thread_local std::mt19937_64 rng(std::random_device{}());
+    static thread_local std::uniform_real_distribution<double> dist(0.0, 1.0);
+    m_lastR = dist(rng);
+
+    // 4-6. Cache if r <= P
+    const bool shouldCache = (m_lastR <= m_lastP);
+
+    NS_LOG_DEBUG("CaccCore::decide: PH_eff=" << phEff
+                 << " RHC_eff=" << rhcEff
+                 << " RHC_inc=" << rhcIncremented
+                 << " P=" << m_lastP
+                 << " r=" << m_lastR
+                 << " -> " << (shouldCache ? "CACHE" : "FORWARD"));
+
+    return shouldCache;
 }
 
 } // namespace ndn
